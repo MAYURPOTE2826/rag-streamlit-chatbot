@@ -94,12 +94,13 @@ if uploaded_files:
     )
 
     # Gemini LLM (SECURE)
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        google_api_key=GEMINI_KEY,
-        temperature=0.2,
-        convert_system_message_to_human=True
-    )
+    lllm = ChatGoogleGenerativeAI(
+    model="gemini-pro-latest",
+    google_api_key=GEMINI_KEY,
+    temperature=0.2,
+    convert_system_message_to_human=True
+)
+
 
     retriever = vectorstore.as_retriever()
 
