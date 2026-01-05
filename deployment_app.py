@@ -11,16 +11,22 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.chains import RetrievalQA
 
 
+# -----------------------------
+# Streamlit Config
+# -----------------------------
 st.set_page_config(page_title="Multi-PDF RAG Chatbot", layout="wide")
 st.title("📚 Multi-PDF RAG Chatbot")
 
 
 # -----------------------------
-# Read Gemini API key securely
+# Read Gemini API Key (CORRECT)
 # -----------------------------
-GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 
+# -----------------------------
+# Utils
+# -----------------------------
 def format_chat_history(chat_history):
     text = ""
     for msg in chat_history:
@@ -36,6 +42,7 @@ def format_chat_history(chat_history):
 # -----------------------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
+
 if "qa" not in st.session_state:
     st.session_state.qa = None
 
@@ -65,15 +72,20 @@ if uploaded_files:
         docs = loader.load()
         all_docs.extend(docs)
 
-    # Split text
+    # -----------------------------
+    # Split Text
+    # -----------------------------
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=500,
         chunk_overlap=50
     )
+
     chunks = splitter.split_documents(all_docs)
     texts = [doc.page_content for doc in chunks]
 
-    # Local embeddings
+    # -----------------------------
+    # Local Embeddings
+    # -----------------------------
     model = SentenceTransformer("all-MiniLM-L6-v2")
 
     class LocalEmbeddingFunction:
@@ -93,14 +105,14 @@ if uploaded_files:
         embedding=embeddings
     )
 
-    # Gemini LLM (SECURE)
-    lllm = ChatGoogleGenerativeAI(
-    model="gemini-pro-latest",
-    google_api_key=GEMINI_KEY,
-    temperature=0.2,
-    convert_system_message_to_human=True
-)
-
+    # -----------------------------
+    # Gemini LLM (FIXED)
+    # -----------------------------
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-pro",
+        google_api_key=GOOGLE_API_KEY,
+        temperature=0.2
+    )
 
     retriever = vectorstore.as_retriever()
 
@@ -110,7 +122,7 @@ if uploaded_files:
         return_source_documents=True
     )
 
-    st.sidebar.success("All PDFs processed!")
+    st.sidebar.success("✅ All PDFs processed!")
 
 
 # -----------------------------
@@ -145,12 +157,15 @@ if user_input and st.session_state.qa:
 
     st.markdown("### 📌 Sources")
     for i, doc in enumerate(sources[:2]):
-        with st.expander(f"Source {i+1}"):
+        with st.expander(f"Source {i + 1}"):
             st.write(doc.page_content)
 
     st.rerun()
 
 
+# -----------------------------
+# Clear Chat
+# -----------------------------
 if st.button("🗑️ Clear Chat"):
     st.session_state.chat_history = []
     st.rerun()
