@@ -8,7 +8,6 @@ from sentence_transformers import SentenceTransformer
 from langchain_community.vectorstores import DocArrayInMemorySearch
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.chains import RetrievalQA
 
 
 # -----------------------------
@@ -19,7 +18,7 @@ st.title("📚 Multi-PDF RAG Chatbot")
 
 
 # -----------------------------
-# Read Gemini API Key (CORRECT)
+# Read Gemini API Key
 # -----------------------------
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
@@ -37,14 +36,38 @@ def format_chat_history(chat_history):
     return text
 
 
+def answer_with_gemini(question, retriever, llm):
+    docs = retriever.get_relevant_documents(question)
+
+    context = "\n\n".join(
+        [doc.page_content[:1500] for doc in docs[:3]]
+    )
+
+    prompt = f"""
+Answer the question using ONLY the context below.
+If the answer is not present, say "I don't know".
+
+Context:
+{context}
+
+Question:
+{question}
+
+Answer:
+"""
+
+    response = llm.invoke(prompt)
+    return response.content, docs
+
+
 # -----------------------------
 # Session State
 # -----------------------------
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
-if "qa" not in st.session_state:
-    st.session_state.qa = None
+if "retriever" not in st.session_state:
+    st.session_state.retriever = None
 
 
 # -----------------------------
@@ -106,22 +129,16 @@ if uploaded_files:
     )
 
     # -----------------------------
-    # Gemini LLM (FIXED)
+    # Gemini LLM (SAFE)
     # -----------------------------
     llm = ChatGoogleGenerativeAI(
-    model="gemini-pro",
-    google_api_key=GOOGLE_API_KEY,
-    temperature=0.2,
-    convert_system_message_to_human=False
-)
-
-    retriever = vectorstore.as_retriever()
-
-    st.session_state.qa = RetrievalQA.from_chain_type(
-        llm=llm,
-        retriever=retriever,
-        return_source_documents=True
+        model="gemini-pro",
+        google_api_key=GOOGLE_API_KEY,
+        temperature=0.2
     )
+
+    st.session_state.llm = llm
+    st.session_state.retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
     st.sidebar.success("✅ All PDFs processed!")
 
@@ -139,15 +156,17 @@ for chat in st.session_state.chat_history:
 
 user_input = st.text_input("Ask a question:")
 
-if user_input and st.session_state.qa:
+if user_input and st.session_state.retriever:
     st.session_state.chat_history.append(
         {"role": "user", "content": user_input}
     )
 
     with st.spinner("Thinking..."):
-        response = st.session_state.qa({"query": user_input})
-        answer = response["result"]
-        sources = response["source_documents"]
+        answer, sources = answer_with_gemini(
+            user_input,
+            st.session_state.retriever,
+            st.session_state.llm
+        )
 
     st.session_state.chat_history.append(
         {"role": "ai", "content": answer}
